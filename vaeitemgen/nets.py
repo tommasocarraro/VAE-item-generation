@@ -42,14 +42,14 @@ class CFVAE_net(torch.nn.Module):
                 torch.nn.Conv2d(32, 64, (5, 5), (1, 1)),
                 torch.nn.ReLU(),
                 torch.nn.MaxPool2d((2, 2)),
-                #torch.nn.Conv2d(64, 128, (3, 3), (1, 1)),
-                #torch.nn.ReLU(),
-                #torch.nn.MaxPool2d((2, 2)),
-                torch.nn.Flatten(start_dim=1),
-                #torch.nn.Linear(128 * 4 * 4, 1000),
-                torch.nn.Dropout(0.3),
+                torch.nn.Conv2d(64, 128, (3, 3), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.Linear(7744, latent_size * 2)
+                torch.nn.MaxPool2d((2, 2)),
+                torch.nn.Flatten(start_dim=1),
+                torch.nn.Linear(128 * 4 * 4, 1000),
+                torch.nn.Dropout(0.5),
+                torch.nn.ReLU(),
+                torch.nn.Linear(1000, latent_size * 2)
             ]
         )
         # decoder architecture
@@ -81,9 +81,15 @@ class CFVAE_net(torch.nn.Module):
         # )
         self.dec_layers = torch.nn.ModuleList(
             [
-                torch.nn.Linear(latent_size * 2, 7744),
+                torch.nn.Linear(latent_size * 2, 1000),
+                torch.nn.Dropout(0.5),
                 torch.nn.ReLU(),
-                torch.nn.Unflatten(1, (64, 11, 11)),
+                torch.nn.Linear(1000, 128 * 4 * 4),
+                torch.nn.ReLU(),
+                torch.nn.Unflatten(1, (128, 4, 4)),
+                torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+                torch.nn.ConvTranspose2d(64, 32, (3, 3), (1, 1), (1, 1), (1, 1), dilation=2),
+                torch.nn.ReLU(),
                 torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                 torch.nn.ConvTranspose2d(64, 32, (5, 5), (1, 1), (2, 2), (1, 1), dilation=2),
                 torch.nn.ReLU(),

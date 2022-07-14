@@ -7,6 +7,7 @@ from time import sleep
 
 # TODO fare anche una valutazione della generazione. Gli item generati per quel utente devono avere uno score alto -> consiglio Guglielmo
 # TODO fare in modo che la loss di ricostruzione penalizzi la ricostruzione di item che non piacciono all'utente -> paper Luca
+# TODO se capisco il significato delle features latenti posso metterle in 0/1 e fare delle regole logiche spegnendo o accendendo neuroni su quelle feature della condizione
 
 
 def kl_loss_function(mu, log_var): return -0.5 * torch.sum(1 + log_var - torch.exp(log_var) - torch.square(mu))
