@@ -88,7 +88,7 @@ class CFVAE_net(torch.nn.Module):
                 torch.nn.ReLU(),
                 torch.nn.Unflatten(1, (128, 4, 4)),
                 torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                torch.nn.ConvTranspose2d(64, 32, (3, 3), (1, 1), (1, 1), (1, 1), dilation=2),
+                torch.nn.ConvTranspose2d(128, 64, (3, 3), (1, 1), (1, 1), (1, 1), dilation=2),
                 torch.nn.ReLU(),
                 torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                 torch.nn.ConvTranspose2d(64, 32, (5, 5), (1, 1), (2, 2), (1, 1), dilation=2),
