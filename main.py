@@ -11,8 +11,8 @@ d = AmazonFashion("./dataset/AmazonFashion6ImgPartitioned.npy")
 # create network architecture
 v = CFVAE_net(d.n_users, 100).to(vaeitemgen.device)
 # create loaders for training and validation
-tr_loader = DataLoader(d.folds["train"], d.item_images, d.u_i_matrix, 224, 256)
-val_loader = DataLoader(d.folds["val"], d.item_images, d.u_i_matrix, 224, 256, shuffle=False)
+tr_loader = DataLoader(d.folds["train"], d.item_images, d.u_i_matrix, 64, 256)
+val_loader = DataLoader(d.folds["val"], d.item_images, d.u_i_matrix, 64, 256, shuffle=False)
 # training the model
 optimizer = torch.optim.Adam(v.parameters(), lr=0.001)
 model = Trainer(v, optimizer)

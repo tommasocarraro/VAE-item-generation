@@ -36,17 +36,14 @@ class CFVAE_net(torch.nn.Module):
         # )
         self.enc_layers = torch.nn.ModuleList(
             [
-                torch.nn.Conv2d(3, 32, (11, 11), (4, 4)),
+                torch.nn.Conv2d(3, 8, (3, 3), (2, 2), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.MaxPool2d((2, 2)),
-                torch.nn.Conv2d(32, 64, (5, 5), (1, 1)),
+                torch.nn.Conv2d(8, 16, (3, 3), (2, 2), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.MaxPool2d((2, 2)),
-                torch.nn.Conv2d(64, 128, (3, 3), (1, 1)),
+                torch.nn.Conv2d(16, 32, (3, 3), (2, 2), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.MaxPool2d((2, 2)),
                 torch.nn.Flatten(start_dim=1),
-                torch.nn.Linear(128 * 4 * 4, 1000),
+                torch.nn.Linear(32 * 8 * 8, 1000),
                 torch.nn.Dropout(0.5),
                 torch.nn.ReLU(),
                 torch.nn.Linear(1000, latent_size * 2)
@@ -84,17 +81,14 @@ class CFVAE_net(torch.nn.Module):
                 torch.nn.Linear(latent_size * 2, 1000),
                 torch.nn.Dropout(0.5),
                 torch.nn.ReLU(),
-                torch.nn.Linear(1000, 128 * 4 * 4),
+                torch.nn.Linear(1000, 32 * 8 * 8),
                 torch.nn.ReLU(),
-                torch.nn.Unflatten(1, (128, 4, 4)),
-                torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                torch.nn.ConvTranspose2d(128, 64, (3, 3), (1, 1), (1, 1), (1, 1), dilation=2),
+                torch.nn.Unflatten(1, (32, 8, 8)),
+                torch.nn.ConvTranspose2d(32, 16, (3, 3), (2, 2), (1, 1), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                torch.nn.ConvTranspose2d(64, 32, (5, 5), (1, 1), (2, 2), (1, 1), dilation=2),
+                torch.nn.ConvTranspose2d(16, 8, (3, 3), (2, 2), (1, 1), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                torch.nn.ConvTranspose2d(32, 3, (11, 11), (4, 4), (0, 0), (1, 1))
+                torch.nn.ConvTranspose2d(8, 3, (3, 3), (2, 2), (1, 1), (1, 1))
             ]
         )
 
