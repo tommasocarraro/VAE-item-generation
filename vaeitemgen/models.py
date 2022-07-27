@@ -129,7 +129,7 @@ class Trainer:
         # plot images and their reconstruction
 
         with torch.no_grad():
-            rec_images = rec_images[-4:].view(-1, 3, 28, 28)
+            rec_images = rec_images[-4:].view(-1, 3, 64, 64)
             images = torch.cat([item_images[:, 0][-4:], rec_images], dim=0)
             grid = make_grid(images, nrow=4)
             plt.figure(figsize=(15, 5))
@@ -141,7 +141,7 @@ class Trainer:
         with torch.no_grad():
             eps = torch.randn((10, 100))
             u = torch.tensor([3 for _ in range(10)])
-            gen_images = self.model.decode(eps, u).view(-1, 3, 28, 28)
+            gen_images = self.model.decode(eps, u).view(-1, 3, 64, 64)
             grid = make_grid(gen_images, nrow=2)
             plt.figure(figsize=(10, 10))
             plt.imshow(np.transpose(grid, (1, 2, 0)), interpolation='nearest', cmap='gray')
