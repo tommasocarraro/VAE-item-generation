@@ -117,8 +117,8 @@ class Trainer:
             predicted_scores, rec_images = self.predict(item_images[:, 0], u_idx)
             n_predicted_scores, n_rec_images = self.predict(item_images[:, 1], u_idx)
             auc_score.append(auc(predicted_scores.detach().cpu().numpy(), n_predicted_scores.detach().cpu().numpy()))
-            mse_score.append((torch.nn.MSELoss()(item_images[:, 0], rec_images) +
-                              torch.nn.MSELoss()(item_images[:, 1], n_rec_images)) / 2)
+            mse_score.append(((torch.nn.MSELoss()(item_images[:, 0], rec_images) +
+                              torch.nn.MSELoss()(item_images[:, 1], n_rec_images)) / 2).detach().cpu().numpy())
 
             # compute validation loss
 
