@@ -1,3 +1,4 @@
+import vaeitemgen
 from vaeitemgen.metrics import auc
 import torch
 import numpy as np
@@ -121,7 +122,8 @@ class Trainer:
 
             # compute validation loss
 
-            rating_loss = - torch.mean(torch.log(torch.nn.Sigmoid()(predicted_scores - n_predicted_scores)))
+            rating_loss = - torch.mean(torch.log(torch.nn.Sigmoid()(predicted_scores.detach().cpu().numpy() -
+                                                                    n_predicted_scores.detach().cpu().numpy())))
             rec_loss = (torch.nn.MSELoss(reduction="sum")(item_images[:, 0], rec_images) +
                         torch.nn.MSELoss(reduction="sum")(item_images[:, 1], n_rec_images)) / 2
             val_loss += (rating_loss + rec_loss)
@@ -129,8 +131,8 @@ class Trainer:
         # plot images and their reconstruction
 
         with torch.no_grad():
-            rec_images = rec_images[-4:].view(-1, 3, 64, 64)
-            images = torch.cat([item_images[:, 0][-4:], rec_images], dim=0)
+            rec_images = rec_images[-4:].view(-1, 3, 64, 64).detach().cpu().numpy()
+            images = torch.cat([item_images[:, 0][-4:].detach().cpu().numpy(), rec_images], dim=0)
             grid = make_grid(images, nrow=4)
             plt.figure(figsize=(15, 5))
             plt.imshow(np.transpose(grid, (1, 2, 0)), interpolation='nearest', cmap='gray')
@@ -139,9 +141,9 @@ class Trainer:
         # plot generated images
 
         with torch.no_grad():
-            eps = torch.randn((10, 100))
-            u = torch.tensor([3 for _ in range(10)])
-            gen_images = self.model.decode(eps, u).view(-1, 3, 64, 64)
+            eps = torch.randn((10, 100)).to(vaeitemgen.device)
+            u = torch.tensor([3 for _ in range(10)]).to(vaeitemgen.device)
+            gen_images = self.model.decode(eps, u).view(-1, 3, 64, 64).detach().cpu().numpy()
             grid = make_grid(gen_images, nrow=2)
             plt.figure(figsize=(10, 10))
             plt.imshow(np.transpose(grid, (1, 2, 0)), interpolation='nearest', cmap='gray')
