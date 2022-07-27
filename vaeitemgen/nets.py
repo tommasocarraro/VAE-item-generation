@@ -17,8 +17,10 @@ class CFVAE_net(torch.nn.Module):
                 torch.nn.ReLU(),
                 torch.nn.Conv2d(32, 64, (3, 3), (2, 2), (1, 1)),
                 torch.nn.ReLU(),
+                torch.nn.Conv2d(64, 128, (3, 3), (2, 2), (1, 1)),
+                torch.nn.ReLU(),
                 torch.nn.Flatten(start_dim=1),
-                torch.nn.Linear(64 * 7 * 7, latent_size * 2)
+                torch.nn.Linear(128 * 8 * 8, latent_size * 2)
             ]
         )
 
@@ -26,9 +28,11 @@ class CFVAE_net(torch.nn.Module):
 
         self.dec_layers = torch.nn.ModuleList(
             [
-                torch.nn.Linear(latent_size * 2, 64 * 7 * 7),
+                torch.nn.Linear(latent_size * 2, 128 * 8 * 8),
                 torch.nn.ReLU(),
-                torch.nn.Unflatten(1, (64, 7, 7)),
+                torch.nn.Unflatten(1, (128, 8, 8)),
+                torch.nn.ConvTranspose2d(128, 64, (3, 3), (2, 2), (1, 1), (1, 1)),
+                torch.nn.ReLU(),
                 torch.nn.ConvTranspose2d(64, 32, (3, 3), (2, 2), (1, 1), (1, 1)),
                 torch.nn.ReLU(),
                 torch.nn.ConvTranspose2d(32, 3, (3, 3), (2, 2), (1, 1), (1, 1))

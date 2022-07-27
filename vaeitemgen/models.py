@@ -3,6 +3,8 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from time import sleep
+from torchvision.utils import make_grid
+import matplotlib.pyplot as plt
 
 
 # TODO fare anche una valutazione della generazione. Gli item generati per quel utente devono avere uno score alto -> consiglio Guglielmo
@@ -23,7 +25,7 @@ class Trainer:
         self.model = model
         self.optimizer = optimizer
 
-    def train(self, train_loader, val_loader, n_epochs=200, early=None, verbose=10, save_path=None):
+    def train(self, train_loader, val_loader, n_epochs=200, early=None, verbose=1, save_path=None):
         """
         Method for the training of the model.
 
@@ -34,31 +36,31 @@ class Trainer:
         :param verbose: number of epochs to wait for printing training details (every 'verbose' epochs)
         :param save_path: path where to save the best model, default to None
         """
-        # best_val_score = 0.0
-        # early_counter = 0
+        best_val_score = 0.0
+        early_counter = 0
 
         for epoch in range(n_epochs):
             # training step
             train_loss, rating_loss, kl_loss, rec_loss = self.train_epoch(train_loader, epoch + 1)
             # validation step
-            # auc_score, mse_score = self.validate(val_loader)
+            auc_score, mse_score, val_loss = self.validate(val_loader)
             # print epoch data
             if (epoch + 1) % verbose == 0:
                 print("Epoch %d - Train loss %.3f - Rating loss %.3f - KL loss %.3f - Rec loss %.3f - "
-                      # "Validation AUC %.3f - Validation MSE %.3f"
-                      % (epoch + 1, train_loss, rating_loss, kl_loss, rec_loss))  #, auc_score, mse_score))
+                      "Validation AUC %.3f - Validation MSE %.3f"
+                      % (epoch + 1, train_loss, rating_loss, kl_loss, rec_loss, auc_score, mse_score))
             # save best model and update early stop counter, if necessary
-            # val_score = auc_score + mse_score
-            # if val_score > best_val_score:
-            #     best_val_score = val_score
-            #     early_counter = 0
-            #     if save_path:
-            #         self.save_model(save_path)
-            # else:
-            #     early_counter += 1
-            #     if early is not None and early_counter > early:
-            #         print("Training interrupted due to early stopping")
-            #         break
+            val_score = val_loss
+            if val_score > best_val_score:
+                best_val_score = val_score
+                early_counter = 0
+                if save_path:
+                    self.save_model(save_path)
+            else:
+                early_counter += 1
+                if early is not None and early_counter > early:
+                    print("Training interrupted due to early stopping")
+                    break
 
     def train_epoch(self, train_loader, epoch):
         """
@@ -109,14 +111,43 @@ class Trainer:
         :param val_loader: data loader for validation data
         :return: validation AUC and MSE averaged across validation examples
         """
-        auc_score, mse_score = [], []
+        auc_score, mse_score, val_loss = [], [], 0.0
         for batch_idx, (u_idx, item_images) in enumerate(val_loader):
             predicted_scores, rec_images = self.predict(item_images[:, 0], u_idx)
             n_predicted_scores, n_rec_images = self.predict(item_images[:, 1], u_idx)
             auc_score.append(auc(predicted_scores.detach().cpu().numpy(), n_predicted_scores.detach().cpu().numpy()))
             mse_score.append((torch.nn.MSELoss()(item_images[:, 0], rec_images) +
                               torch.nn.MSELoss()(item_images[:, 1], n_rec_images)) / 2)
-        return np.mean(np.concatenate(auc_score)), np.mean(np.concatenate(mse_score))
+
+            # compute validation loss
+
+            rating_loss = - torch.mean(torch.log(torch.nn.Sigmoid()(predicted_scores - n_predicted_scores)))
+            rec_loss = (torch.nn.MSELoss(reduction="sum")(item_images[:, 0], rec_images) +
+                        torch.nn.MSELoss(reduction="sum")(item_images[:, 1], n_rec_images)) / 2
+            val_loss += (rating_loss + rec_loss)
+
+        # plot images and their reconstruction
+
+        with torch.no_grad():
+            rec_images = rec_images[-4:].view(-1, 3, 28, 28)
+            images = torch.cat([item_images[:, 0][-4:], rec_images], dim=0)
+            grid = make_grid(images, nrow=4)
+            plt.figure(figsize=(15, 5))
+            plt.imshow(np.transpose(grid, (1, 2, 0)), interpolation='nearest', cmap='gray')
+            plt.show()
+
+        # plot generated images
+
+        with torch.no_grad():
+            eps = torch.randn((10, 100))
+            u = torch.tensor([3 for _ in range(10)])
+            gen_images = self.model.decode(eps, u).view(-1, 3, 28, 28)
+            grid = make_grid(gen_images, nrow=2)
+            plt.figure(figsize=(10, 10))
+            plt.imshow(np.transpose(grid, (1, 2, 0)), interpolation='nearest', cmap='gray')
+            plt.show()
+
+        return np.mean(auc_score), np.mean(mse_score), val_loss / len(val_loader)
 
     def save_model(self, path):
         """
