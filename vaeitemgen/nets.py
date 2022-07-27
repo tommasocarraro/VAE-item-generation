@@ -8,87 +8,30 @@ class CFVAE_net(torch.nn.Module):
         self.u_emb = torch.nn.Embedding(n_users, latent_size)
         torch.nn.init.xavier_normal_(self.u_emb.weight)
         self.latent_size = latent_size
+
         # encoder architecture
-        # self.enc_layers = torch.nn.ModuleList(
-        #     [
-        #         torch.nn.Conv2d(3, 64, (11, 11), (4, 4)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.MaxPool2d((2, 2)),
-        #         torch.nn.Conv2d(64, 256, (3, 3), (1, 1), (1, 1)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.MaxPool2d((2, 2)),
-        #         torch.nn.Conv2d(256, 256, (3, 3), (1, 1), (1, 1)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Conv2d(256, 256, (3, 3), (1, 1), (1, 1)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Conv2d(256, 256, (3, 3), (1, 1), (1, 1)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.MaxPool2d((2, 2)),
-        #         torch.nn.Flatten(start_dim=1),
-        #         torch.nn.Linear(256 * 6 * 6, 4096),
-        #         torch.nn.Dropout(0.5),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Linear(4096, 4096),
-        #         torch.nn.Dropout(0.5),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Linear(4096, latent_size * 2)
-        #     ]
-        # )
+
         self.enc_layers = torch.nn.ModuleList(
             [
-                torch.nn.Conv2d(3, 8, (3, 3), (2, 2), (1, 1)),
+                torch.nn.Conv2d(3, 32, (3, 3), (2, 2), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(8, 16, (3, 3), (2, 2), (1, 1)),
-                torch.nn.ReLU(),
-                torch.nn.Conv2d(16, 32, (3, 3), (2, 2), (1, 1)),
+                torch.nn.Conv2d(32, 64, (3, 3), (2, 2), (1, 1)),
                 torch.nn.ReLU(),
                 torch.nn.Flatten(start_dim=1),
-                torch.nn.Linear(32 * 8 * 8, 1000),
-                torch.nn.Dropout(0.5),
-                torch.nn.ReLU(),
-                torch.nn.Linear(1000, latent_size * 2)
+                torch.nn.Linear(64 * 7 * 7, latent_size * 2)
             ]
         )
+
         # decoder architecture
-        # self.dec_layers = torch.nn.ModuleList(
-        #     [
-        #         torch.nn.Linear(latent_size * 2, 4096),
-        #         torch.nn.Dropout(0.5),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Linear(4096, 4096),
-        #         torch.nn.Dropout(0.5),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Linear(4096, 256 * 6 * 6),
-        #         torch.nn.Dropout(0.5),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Unflatten(1, (256, 6, 6)),
-        #         torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-        #         torch.nn.ConvTranspose2d(256, 256, (3, 3), (1, 1), (2, 2), (1, 1), dilation=2),
-        #         torch.nn.ReLU(),
-        #         torch.nn.ConvTranspose2d(256, 256, (3, 3), (1, 1), (1, 1)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.ConvTranspose2d(256, 256, (3, 3), (1, 1), (1, 1)),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-        #         torch.nn.ConvTranspose2d(256, 64, (5, 5), (1, 1), (4, 4), (1, 1), dilation=2),
-        #         torch.nn.ReLU(),
-        #         torch.nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-        #         torch.nn.ConvTranspose2d(64, 3, (11, 11), (4, 4), (0, 0), (1, 1))
-        #     ]
-        # )
+
         self.dec_layers = torch.nn.ModuleList(
             [
-                torch.nn.Linear(latent_size * 2, 1000),
-                torch.nn.Dropout(0.5),
+                torch.nn.Linear(latent_size * 2, 64 * 7 * 7),
                 torch.nn.ReLU(),
-                torch.nn.Linear(1000, 32 * 8 * 8),
+                torch.nn.Unflatten(1, (64, 7, 7)),
+                torch.nn.ConvTranspose2d(64, 32, (3, 3), (2, 2), (1, 1), (1, 1)),
                 torch.nn.ReLU(),
-                torch.nn.Unflatten(1, (32, 8, 8)),
-                torch.nn.ConvTranspose2d(32, 16, (3, 3), (2, 2), (1, 1), (1, 1)),
-                torch.nn.ReLU(),
-                torch.nn.ConvTranspose2d(16, 8, (3, 3), (2, 2), (1, 1), (1, 1)),
-                torch.nn.ReLU(),
-                torch.nn.ConvTranspose2d(8, 3, (3, 3), (2, 2), (1, 1), (1, 1))
+                torch.nn.ConvTranspose2d(32, 3, (3, 3), (2, 2), (1, 1), (1, 1))
             ]
         )
 

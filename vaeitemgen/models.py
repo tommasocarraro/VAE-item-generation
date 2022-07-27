@@ -8,6 +8,7 @@ from time import sleep
 # TODO fare anche una valutazione della generazione. Gli item generati per quel utente devono avere uno score alto -> consiglio Guglielmo
 # TODO fare in modo che la loss di ricostruzione penalizzi la ricostruzione di item che non piacciono all'utente -> paper Luca
 # TODO se capisco il significato delle features latenti posso metterle in 0/1 e fare delle regole logiche spegnendo o accendendo neuroni su quelle feature della condizione
+# TODO devo decidere quale e' il criterio per la validazione. Non posso fare la somma dei due. Forse sarebbe meglio utilizzare la loss in validazione
 
 
 def kl_loss_function(mu, log_var): return -0.5 * torch.sum(1 + log_var - torch.exp(log_var) - torch.square(mu))
@@ -33,31 +34,31 @@ class Trainer:
         :param verbose: number of epochs to wait for printing training details (every 'verbose' epochs)
         :param save_path: path where to save the best model, default to None
         """
-        best_val_score = 0.0
-        early_counter = 0
+        # best_val_score = 0.0
+        # early_counter = 0
 
         for epoch in range(n_epochs):
             # training step
             train_loss, rating_loss, kl_loss, rec_loss = self.train_epoch(train_loader, epoch + 1)
             # validation step
-            auc_score, mse_score = self.validate(val_loader)
+            # auc_score, mse_score = self.validate(val_loader)
             # print epoch data
             if (epoch + 1) % verbose == 0:
                 print("Epoch %d - Train loss %.3f - Rating loss %.3f - KL loss %.3f - Rec loss %.3f - "
-                      "Validation AUC %.3f - Validation MSE %.3f"
-                      % (epoch + 1, train_loss, rating_loss, kl_loss, rec_loss, auc_score, mse_score))
+                      # "Validation AUC %.3f - Validation MSE %.3f"
+                      % (epoch + 1, train_loss, rating_loss, kl_loss, rec_loss))  #, auc_score, mse_score))
             # save best model and update early stop counter, if necessary
-            val_score = auc_score + mse_score
-            if val_score > best_val_score:
-                best_val_score = val_score
-                early_counter = 0
-                if save_path:
-                    self.save_model(save_path)
-            else:
-                early_counter += 1
-                if early is not None and early_counter > early:
-                    print("Training interrupted due to early stopping")
-                    break
+            # val_score = auc_score + mse_score
+            # if val_score > best_val_score:
+            #     best_val_score = val_score
+            #     early_counter = 0
+            #     if save_path:
+            #         self.save_model(save_path)
+            # else:
+            #     early_counter += 1
+            #     if early is not None and early_counter > early:
+            #         print("Training interrupted due to early stopping")
+            #         break
 
     def train_epoch(self, train_loader, epoch):
         """
