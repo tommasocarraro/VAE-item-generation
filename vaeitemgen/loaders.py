@@ -84,17 +84,21 @@ class DataLoader:
                  data,
                  u_i_matrix,
                  batch_size=1,
+                 n_neg=1,
                  shuffle=True):
         """
         Constructor of the training data loader.
         :param data: np.array of triples (user, item, rating)
         :param u_i_matrix: sparse user-item interaction matrix where there is a 1 if user i interacted with item j
         :param batch_size: batch size for the training of the model
+        :param n_neg: number of negative items that have to be sampled and given with the positive item. 1 during
+        training and 100 during validation and test
         :param shuffle: whether to shuffle data during training or not
         """
         self.data = data
         self.u_i_matrix = u_i_matrix
         self.batch_size = batch_size
+        self.n_neg = n_neg
         self.shuffle = shuffle
 
     def __len__(self):
@@ -115,8 +119,8 @@ class DataLoader:
             # get negative item indexes
 
             user_interactions = self.u_i_matrix[u_idx]
-            n_i_idx = np.stack([np.random.permutation((1 - user_interactions[u].todense()).nonzero()[1])[0]
-                       for u in range(user_interactions.shape[0])])
+            n_i_idx = np.stack([np.random.permutation((1 - user_interactions[u].todense()).nonzero()[1])[:self.n_neg]
+                                for u in range(user_interactions.shape[0])])
 
             yield torch.tensor(u_idx).to(vaeitemgen.device), \
-                  torch.tensor(np.stack([p_i_idx, n_i_idx], axis=1)).to(vaeitemgen.device)
+                  torch.tensor(np.concatenate([p_i_idx[:, np.newaxis], n_i_idx], axis=1)).to(vaeitemgen.device)

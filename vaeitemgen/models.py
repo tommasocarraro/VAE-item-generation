@@ -197,15 +197,15 @@ class TrainerMF:
             # training step
             train_loss = self.train_epoch(train_loader, epoch + 1)
             # validation step
-            auc_score, val_loss = self.validate(val_loader)
+            auc_score = self.validate(val_loader)
             # print epoch data
             if (epoch + 1) % verbose == 0:
                 print("Epoch %d - Train loss %.3f - Validation AUC %.3f"
                       % (epoch + 1, train_loss, auc_score))
             # save best model and update early stop counter, if necessary
-            val_score = val_loss
-            if val_score > best_val_score:
-                best_val_score = val_score
+
+            if auc_score > best_val_score:
+                best_val_score = auc_score
                 early_counter = 0
                 if save_path:
                     self.save_model(save_path)
@@ -229,7 +229,7 @@ class TrainerMF:
                 self.optimizer.zero_grad()
                 rating_pred = self.model(u_idx, i_idx[:, 0])
                 n_rating_pred = self.model(u_idx, i_idx[:, 1])
-                loss = - torch.sum(torch.log(torch.nn.Sigmoid()(rating_pred - n_rating_pred)))
+                loss = - torch.mean(torch.log(torch.nn.Sigmoid()(rating_pred - n_rating_pred)))
                 loss.backward()
                 self.optimizer.step()
                 train_loss += loss.item()
@@ -259,14 +259,10 @@ class TrainerMF:
         auc_score, val_loss = [], 0.0
         for batch_idx, (u_idx, i_idx) in enumerate(val_loader):
             predicted_scores = self.predict(u_idx, i_idx[:, 0])
-            n_predicted_scores = self.predict(u_idx, i_idx[:, 1])
+            n_predicted_scores = self.predict(u_idx.unsqueeze(1).expand(-1, i_idx.shape[1] - 1), i_idx[:, 1:])
             auc_score.append(auc(predicted_scores.cpu().numpy(), n_predicted_scores.cpu().numpy()))
 
-            # compute validation loss
-
-            val_loss += - torch.mean(torch.log(torch.nn.Sigmoid()(predicted_scores - n_predicted_scores)))
-
-        return np.mean(auc_score), val_loss / len(val_loader)
+        return np.mean(auc_score)
 
     def save_model(self, path):
         """
