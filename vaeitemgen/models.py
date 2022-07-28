@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 def kl_loss_function(mu, log_var): return -0.5 * torch.sum(1 + log_var - torch.exp(log_var) - torch.square(mu))
 
 
-class Trainer:
+class TrainerCVAE:
     """
     Trainer to train and validate the collaborative VAE model.
     """
@@ -149,6 +149,124 @@ class Trainer:
             plt.show()
 
         return np.mean(auc_score), np.mean(mse_score), val_loss / len(val_loader)
+
+    def save_model(self, path):
+        """
+        Method for saving the model.
+        :param path: path where to save the model
+        """
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }, path)
+
+    def load_model(self, path):
+        """
+        Method for loading the model.
+        :param path: path from which the model has to be loaded.
+        """
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+
+class TrainerMF:
+    """
+    Trainer to train and validate the Matrix Factorization model.
+    """
+
+    def __init__(self, model, optimizer):
+        self.model = model
+        self.optimizer = optimizer
+
+    def train(self, train_loader, val_loader, n_epochs=200, early=None, verbose=1, save_path=None):
+        """
+        Method for the training of the model.
+
+        :param train_loader: data loader for training data
+        :param val_loader: data loader for validation data
+        :param n_epochs: number of epochs of training, default to 200
+        :param early: threshold for early stopping, default to None
+        :param verbose: number of epochs to wait for printing training details (every 'verbose' epochs)
+        :param save_path: path where to save the best model, default to None
+        """
+        best_val_score = 0.0
+        early_counter = 0
+
+        for epoch in range(n_epochs):
+            # training step
+            train_loss = self.train_epoch(train_loader, epoch + 1)
+            # validation step
+            auc_score, val_loss = self.validate(val_loader)
+            # print epoch data
+            if (epoch + 1) % verbose == 0:
+                print("Epoch %d - Train loss %.3f - Validation AUC %.3f"
+                      % (epoch + 1, train_loss, auc_score))
+            # save best model and update early stop counter, if necessary
+            val_score = val_loss
+            if val_score > best_val_score:
+                best_val_score = val_score
+                early_counter = 0
+                if save_path:
+                    self.save_model(save_path)
+            else:
+                early_counter += 1
+                if early is not None and early_counter > early:
+                    print("Training interrupted due to early stopping")
+                    break
+
+    def train_epoch(self, train_loader, epoch):
+        """
+        Method for the training of one single epoch.
+        :param train_loader: data loader for training data
+        :param epoch: epoch index just for printing information about training
+        :return: training loss value averaged across training batches
+        """
+        train_loss = 0.0
+        with tqdm(train_loader, unit="batch") as tepoch:
+            for u_idx, i_idx in tepoch:
+                tepoch.set_description(f"Epoch {epoch}")
+                self.optimizer.zero_grad()
+                rating_pred = self.model(u_idx, i_idx[:, 0])
+                n_rating_pred = self.model(u_idx, i_idx[:, 1])
+                loss = - torch.sum(torch.log(torch.nn.Sigmoid()(rating_pred - n_rating_pred)))
+                loss.backward()
+                self.optimizer.step()
+                train_loss += loss.item()
+                tepoch.set_postfix({"Loss": loss.item()})
+                sleep(0.1)
+        return train_loss / len(train_loader)
+
+    def predict(self, u_idx, i_idx):
+        """
+        Method for performing a prediction of the model. It returns the score for the given user and item index.
+
+        :param u_idx: user for which the prediction has to be computed
+        :param i_idx: item for which the prediction has to be computed
+        :return: the prediction of the model for the given user_item pair.
+        """
+        with torch.no_grad():
+            pred_ratings = self.model(u_idx, i_idx)
+            return pred_ratings
+
+    def validate(self, val_loader):
+        """
+        Method for validating the model.
+
+        :param val_loader: data loader for validation data
+        :return: validation AUC and MSE averaged across validation examples
+        """
+        auc_score, val_loss = [], 0.0
+        for batch_idx, (u_idx, i_idx) in enumerate(val_loader):
+            predicted_scores = self.predict(u_idx, i_idx[:, 0])
+            n_predicted_scores = self.predict(u_idx, i_idx[:, 1])
+            auc_score.append(auc(predicted_scores.cpu().numpy(), n_predicted_scores.cpu().numpy()))
+
+            # compute validation loss
+
+            val_loss += - torch.mean(torch.log(torch.nn.Sigmoid()(predicted_scores - n_predicted_scores)))
+
+        return np.mean(auc_score), val_loss / len(val_loader)
 
     def save_model(self, path):
         """

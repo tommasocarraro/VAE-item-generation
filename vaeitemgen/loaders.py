@@ -1,11 +1,10 @@
 import numpy as np
 import torch
 from PIL import Image
-
 import vaeitemgen
 
 
-class DataLoader:
+class DataLoaderWithImages:
     """
     Data loader to load the training/validation/test set of the Amazon fashion dataset. It creates batches for
     pair-wise learning procedure and evaluation. Each batch is composed of:
@@ -74,3 +73,50 @@ class DataLoader:
             yield torch.tensor(u_idx).to(vaeitemgen.device), \
                   torch.tensor(np.stack([np.stack(positive_item_images),
                                          np.stack(negative_item_images)], axis=1)).float().to(vaeitemgen.device) / 255
+
+
+class DataLoader:
+    """
+    Same data loader as DataLoaderWithImages where instead of retrieving images for items it retrieves item indexes for
+    learning simple ML recommendation models like MF.
+    """
+    def __init__(self,
+                 data,
+                 u_i_matrix,
+                 batch_size=1,
+                 shuffle=True):
+        """
+        Constructor of the training data loader.
+        :param data: np.array of triples (user, item, rating)
+        :param u_i_matrix: sparse user-item interaction matrix where there is a 1 if user i interacted with item j
+        :param batch_size: batch size for the training of the model
+        :param shuffle: whether to shuffle data during training or not
+        """
+        self.data = data
+        self.u_i_matrix = u_i_matrix
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+    def __len__(self):
+        return int(np.ceil(self.data.shape[0] / self.batch_size))
+
+    def __iter__(self):
+        n = self.data.shape[0]
+        idxlist = list(range(n))
+        if self.shuffle:
+            np.random.shuffle(idxlist)
+
+        for _, start_idx in enumerate(range(0, n, self.batch_size)):
+            end_idx = min(start_idx + self.batch_size, n)
+            data = self.data[idxlist[start_idx:end_idx]]
+            u_idx = data[:, 0]
+            p_i_idx = data[:, 1]
+
+            # get negative item indexes
+
+            user_interactions = self.u_i_matrix[u_idx]
+            n_i_idx = np.stack([np.random.permutation((1 - user_interactions[u].todense()).nonzero()[1])[0]
+                       for u in range(user_interactions.shape[0])])
+
+            yield torch.tensor(u_idx).to(vaeitemgen.device), \
+                  torch.tensor(np.stack([p_i_idx, n_i_idx], axis=1)).to(vaeitemgen.device)

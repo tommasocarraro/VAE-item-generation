@@ -1,6 +1,21 @@
 import torch
 
 
+class MatrixFactorization(torch.nn.Module):
+    def __init__(self, n_users, n_items, latent_size):
+        super(MatrixFactorization, self).__init__()
+        # user embeddings randomly initialized
+        self.u_emb = torch.nn.Embedding(n_users, latent_size)
+        torch.nn.init.xavier_normal_(self.u_emb.weight)
+        # item embeddings randomly initialized
+        self.i_emb = torch.nn.Embedding(n_items, latent_size)
+        torch.nn.init.xavier_normal_(self.i_emb.weight)
+        self.latent_size = latent_size
+
+    def forward(self, u_idx, i_idx):
+        return torch.sum(self.u_emb(u_idx) * self.i_emb(i_idx), dim=1)
+
+
 class CFVAE_net(torch.nn.Module):
     def __init__(self, n_users, latent_size):
         super(CFVAE_net, self).__init__()
