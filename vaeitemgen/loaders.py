@@ -23,6 +23,7 @@ class DataLoaderWithImages:
                  item_images,
                  u_i_matrix,
                  image_size,
+                 n_neg=1,
                  batch_size=1,
                  shuffle=True):
         """
@@ -33,6 +34,8 @@ class DataLoaderWithImages:
         :param u_i_matrix: sparse user-item interaction matrix where there is a 1 if user i interacted with item j
         :param image_size: size of images of products. Images will be resized to the given size. Default is 224x224
         as they used in the paper about fashion recommendation generation
+        :param n_neg: number of negative images that have to be sampled for each user. 1 in training and 100 in
+        validation
         :param batch_size: batch size for the training of the model
         :param shuffle: whether to shuffle data during training or not
         """
@@ -40,6 +43,7 @@ class DataLoaderWithImages:
         self.item_images = item_images
         self.u_i_matrix = u_i_matrix
         self.image_size = image_size
+        self.n_neg = n_neg
         self.batch_size = batch_size
         self.shuffle = shuffle
 
@@ -63,16 +67,12 @@ class DataLoaderWithImages:
             # get negative item images
 
             user_interactions = self.u_i_matrix[u_idx]
-            negative_item_images = [np.asarray(Image.open(
-                self.item_images[np.random.permutation(
-                    (1 - user_interactions[u].todense()).nonzero()[1])[0]]).convert('RGB').
-                                                resize((self.image_size, self.image_size))
-                                                ).transpose((2, 0, 1))
-                                     for u in range(user_interactions.shape[0])]
+            negative_item_images = [[np.asarray(Image.open(img).convert('RGB').resize((self.image_size, self.image_size))).transpose((2, 0, 1)) for img in self.item_images[np.random.permutation((1 - user_interactions[u].todense()).nonzero()[1])[:self.n_neg]]]
+                                    for u in range(user_interactions.shape[0])]
 
             yield torch.tensor(u_idx).to(vaeitemgen.device), \
-                  torch.tensor(np.stack([np.stack(positive_item_images),
-                                         np.stack(negative_item_images)], axis=1)).float().to(vaeitemgen.device) / 255
+                  torch.tensor(np.concatenate([np.stack(positive_item_images)[:, np.newaxis],
+                                               np.array(negative_item_images)], axis=1)).float().to(vaeitemgen.device) / 255
 
 
 class DataLoader:

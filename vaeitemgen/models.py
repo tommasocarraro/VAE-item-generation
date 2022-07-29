@@ -14,9 +14,6 @@ import matplotlib.pyplot as plt
 # TODO devo decidere quale e' il criterio per la validazione. Non posso fare la somma dei due. Forse sarebbe meglio utilizzare la loss in validazione
 
 
-def kl_loss_function(mu, log_var): return -0.5 * torch.sum(1 + log_var - torch.exp(log_var) - torch.square(mu))
-
-
 class TrainerCVAE:
     """
     Trainer to train and validate the collaborative VAE model.
@@ -25,6 +22,9 @@ class TrainerCVAE:
     def __init__(self, model, optimizer):
         self.model = model
         self.optimizer = optimizer
+        self.mse_mean = torch.nn.MSELoss()
+        self.mse_sum = torch.nn.MSELoss(reduction="sum")
+        self.kl = lambda mu, log_var: -0.5 * torch.sum(1 + log_var - torch.exp(log_var) - torch.square(mu))
 
     def train(self, train_loader, val_loader, n_epochs=200, early=None, verbose=1, save_path=None):
         """
@@ -44,16 +44,15 @@ class TrainerCVAE:
             # training step
             train_loss, rating_loss, kl_loss, rec_loss = self.train_epoch(train_loader, epoch + 1)
             # validation step
-            auc_score, mse_score, val_loss = self.validate(val_loader)
+            auc_score, ndcg_score, hit_score, mse_score = self.validate(val_loader)
             # print epoch data
             if (epoch + 1) % verbose == 0:
                 print("Epoch %d - Train loss %.3f - Rating loss %.3f - KL loss %.3f - Rec loss %.3f - "
-                      "Validation AUC %.3f - Validation MSE %.3f"
-                      % (epoch + 1, train_loss, rating_loss, kl_loss, rec_loss, auc_score, mse_score))
+                      "Validation AUC %.3f - Validation NDCG@10 %.3f - Validation HIT@10 %.3f - Validation MSE %.3f"
+                      % (epoch + 1, train_loss, rating_loss, kl_loss, rec_loss, auc_score, ndcg_score, hit_score, mse_score))
             # save best model and update early stop counter, if necessary
-            val_score = val_loss
-            if val_score > best_val_score:
-                best_val_score = val_score
+            if auc_score > best_val_score:
+                best_val_score = auc_score
                 early_counter = 0
                 if save_path:
                     self.save_model(save_path)
@@ -75,12 +74,12 @@ class TrainerCVAE:
             for u_idx, item_images in tepoch:
                 tepoch.set_description(f"Epoch {epoch}")
                 self.optimizer.zero_grad()
-                rating_pred, mu, log_var, rec_images = self.model(item_images[:, 0], u_idx)
-                n_rating_pred, n_mu, n_log_var, n_rec_images = self.model(item_images[:, 1], u_idx)
-                rating_loss = - torch.sum(torch.log(torch.nn.Sigmoid()(rating_pred - n_rating_pred)))
-                rec_loss = (torch.nn.MSELoss(reduction="sum")(item_images[:, 0], rec_images) +
-                            torch.nn.MSELoss(reduction="sum")(item_images[:, 1], n_rec_images)) / 2
-                kl_loss = (kl_loss_function(mu, log_var) + kl_loss_function(n_mu, n_log_var)) / 2
+                rating_pred, mu, log_var, rec_images = self.model(u_idx, item_images[:, 0])
+                n_rating_pred, n_mu, n_log_var, n_rec_images = self.model(u_idx, item_images[:, 1])
+                rating_loss = - torch.mean(torch.log(torch.nn.Sigmoid()(rating_pred - n_rating_pred)))
+                rec_loss = (self.mse_sum(item_images[:, 0], rec_images) +
+                            self.mse_sum(item_images[:, 1], n_rec_images)) / 2
+                kl_loss = (self.kl(mu, log_var) + self.kl(n_mu, n_log_var)) / 2
                 loss = rating_loss + rec_loss + kl_loss
                 loss.backward()
                 self.optimizer.step()
@@ -91,18 +90,18 @@ class TrainerCVAE:
         return train_loss / len(train_loader), rating_loss / len(train_loader), \
                kl_loss / len(train_loader), rec_loss / len(train_loader)
 
-    def predict(self, item_image, u_idx):
+    def predict(self, u_idx, item_image):
         """
-        Method for performing a prediction of the model. It returns the score for the given image and user index.
+        Method for performing a prediction of the model. It returns the score for the given user and item image.
         In addition, it returns the reconstruction of the given item image.
 
-        :param item_image: image for which the prediction has to be computed
         :param u_idx: user for which the prediction has to be computed
+        :param item_image: image for which the prediction has to be computed
         :return: the prediction of the model for the given image-user pair. The prediction is composed of a
         recommendation score and the reconstruction of the item image.
         """
         with torch.no_grad():
-            pred_ratings, _, _, rec_images = self.model(item_image, u_idx)
+            pred_ratings, _, _, rec_images = self.model(u_idx, item_image)
             return pred_ratings, rec_images
 
     def validate(self, val_loader):
@@ -110,24 +109,26 @@ class TrainerCVAE:
         Method for validating the model.
 
         :param val_loader: data loader for validation data
-        :return: validation AUC and MSE averaged across validation examples
+        :return: validation AUC, NDCG@10, HIT@10 and MSE of images averaged across validation examples
         """
-        auc_score, mse_score, val_loss = [], [], 0.0
+        auc_score, ndcg_score, hit_score, mse_score = [], [], [], []
         for batch_idx, (u_idx, item_images) in enumerate(val_loader):
-            predicted_scores, rec_images = self.predict(item_images[:, 0], u_idx)
-            n_predicted_scores, n_rec_images = self.predict(item_images[:, 1], u_idx)
-            auc_score.append(auc(predicted_scores.detach().cpu().numpy(), n_predicted_scores.detach().cpu().numpy()))
-            mse_score.append(((torch.nn.MSELoss()(item_images[:, 0], rec_images) +
-                              torch.nn.MSELoss()(item_images[:, 1], n_rec_images)) / 2).detach().cpu().numpy())
-
-            # compute validation loss
-
-            rating_loss = - torch.mean(torch.log(torch.nn.Sigmoid()(predicted_scores - n_predicted_scores)))
-            rec_loss = (torch.nn.MSELoss(reduction="sum")(item_images[:, 0], rec_images) +
-                        torch.nn.MSELoss(reduction="sum")(item_images[:, 1], n_rec_images)) / 2
-            val_loss += (rating_loss + rec_loss)
+            predicted_scores, rec_images = self.predict(u_idx, item_images[:, 0])
+            n_predicted_scores, n_rec_images = self.predict(u_idx, item_images[:, 1:])
+            auc_score.append(auc(predicted_scores.cpu().numpy(), n_predicted_scores.cpu().numpy()))
+            mse_score.append((self.mse_mean(item_images[:, 0], rec_images) +
+                              self.mse_mean(item_images[:, 1:], n_rec_images) / 2).detach().cpu().numpy())
+            gt = np.zeros((u_idx.shape[0], item_images.shape[1]))
+            gt[:, 0] = 1
+            total_preds = np.concatenate([predicted_scores[:, np.newaxis], n_predicted_scores], axis=1)
+            ndcg_score.append(np.mean(ndcg_at_k(total_preds, gt, 10)))
+            hit_score.append(np.mean(hit_at_k(total_preds, gt, 10)))
 
         # plot images and their reconstruction
+
+        print("Qualitative evaluation")
+
+        print("Reconstruction quality")
 
         with torch.no_grad():
             rec_images = rec_images[-4:].view(-1, 3, 64, 64)
@@ -139,6 +140,8 @@ class TrainerCVAE:
 
         # plot generated images
 
+        print("Generation quality")
+
         with torch.no_grad():
             eps = torch.randn((10, 100)).to(vaeitemgen.device)
             u = torch.tensor([3 for _ in range(10)]).to(vaeitemgen.device)
@@ -148,7 +151,7 @@ class TrainerCVAE:
             plt.imshow(np.transpose(grid.detach().cpu().numpy(), (1, 2, 0)), interpolation='nearest', cmap='gray')
             plt.show()
 
-        return np.mean(auc_score), np.mean(mse_score), val_loss / len(val_loader)
+        return np.mean(auc_score), np.mean(ndcg_score), np.mean(hit_score), np.mean(mse_score)
 
     def save_model(self, path):
         """

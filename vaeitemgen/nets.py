@@ -82,7 +82,7 @@ class CFVAE_net(torch.nn.Module):
             z = layer(z)
         return torch.sigmoid(z)
 
-    def forward(self, x, u_idx):
+    def forward(self, u_idx, i_image):
         """
         It performs an entire forward phase of the collaborative VAE model.
 
@@ -92,16 +92,16 @@ class CFVAE_net(torch.nn.Module):
         product of the user embedding with mu. Eventually, the decoder takes z sampled from N(mu, log_var) and the user
         embedding and tries to reconstruct the given image.
 
-        :param x: image of a product
         :param u_idx: index of user
+        :param i_image: image of a product
         :return: prediction for u-i rating, mu, log_var, reconstructed image
         """
-        mu, log_var = self.encode(x)
+        mu, log_var = self.encode(i_image)
         # rep trick
         eps = torch.randn_like(mu)
         std = torch.exp(log_var * 0.5)
         z = (std * eps) + mu
         rec = self.decode(z, u_idx)
         # get prediction for rating of given user and item
-        pred = torch.sum(mu * self.u_emb(u_idx), dim=1)
+        pred = torch.sum(self.u_emb(u_idx) * mu, dim=1)
         return pred, mu, log_var, rec
