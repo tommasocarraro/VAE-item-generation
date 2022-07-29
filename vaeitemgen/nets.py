@@ -96,12 +96,18 @@ class CFVAE_net(torch.nn.Module):
         :param i_image: image of a product
         :return: prediction for u-i rating, mu, log_var, reconstructed image
         """
-        mu, log_var = self.encode(i_image)
+        mu, log_var = self.encode(i_image.reshape(-1, 3, i_image.shape[-2], i_image.shape[-1])
+                                  if len(i_image.shape) > 4 else i_image)
         # rep trick
         eps = torch.randn_like(mu)
         std = torch.exp(log_var * 0.5)
         z = (std * eps) + mu
-        rec = self.decode(z, u_idx)
+        rec = self.decode(z, u_idx.repeat(i_image.shape[1]) if len(i_image.shape) > 4 else u_idx)
+        if len(i_image.shape) > 4:
+            rec = rec.view(u_idx.shape[0], i_image.shape[1], 3, i_image.shape[-2], i_image.shape[-1])
         # get prediction for rating of given user and item
-        pred = torch.sum(self.u_emb(u_idx) * mu, dim=1)
+        pred = torch.sum((self.u_emb(u_idx).repeat(i_image.shape[1], 1)
+                          if len(i_image.shape) > 4 else self.u_emb(u_idx)) * mu, dim=1)
+        if len(i_image.shape) > 4:
+            pred = pred.view(u_idx.shape[0], i_image.shape[1])
         return pred, mu, log_var, rec
