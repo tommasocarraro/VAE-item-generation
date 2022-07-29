@@ -115,7 +115,9 @@ class TrainerCVAE:
         for batch_idx, (u_idx, item_images) in enumerate(val_loader):
             predicted_scores, rec_images = self.predict(u_idx, item_images[:, 0])
             n_predicted_scores, n_rec_images = self.predict(u_idx, item_images[:, 1:])
-            auc_score.append(auc(predicted_scores.cpu().numpy(), n_predicted_scores.cpu().numpy()))
+            predicted_scores = predicted_scores.cpu().numpy()
+            n_predicted_scores = n_predicted_scores.cpu().numpy()
+            auc_score.append(auc(predicted_scores, n_predicted_scores))
             mse_score.append((self.mse_mean(item_images[:, 0], rec_images) +
                               self.mse_mean(item_images[:, 1:], n_rec_images) / 2).detach().cpu().numpy())
             gt = np.zeros((u_idx.shape[0], item_images.shape[1]))
