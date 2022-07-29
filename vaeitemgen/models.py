@@ -1,5 +1,5 @@
 import vaeitemgen
-from vaeitemgen.metrics import auc
+from vaeitemgen.metrics import auc, ndcg_at_k, hit_at_k
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -197,11 +197,12 @@ class TrainerMF:
             # training step
             train_loss = self.train_epoch(train_loader, epoch + 1)
             # validation step
-            auc_score = self.validate(val_loader)
+            auc_score, ndcg_score, hit_score = self.validate(val_loader)
             # print epoch data
             if (epoch + 1) % verbose == 0:
-                print("Epoch %d - Train loss %.3f - Validation AUC %.3f"
-                      % (epoch + 1, train_loss, auc_score))
+                print("Epoch %d - Train loss %.3f - Validation AUC %.3f - Validation NDCG@10 %.3f - "
+                      "Validation HIT@10 %.3f"
+                      % (epoch + 1, train_loss, auc_score, ndcg_score, hit_score))
             # save best model and update early stop counter, if necessary
 
             if auc_score > best_val_score:
@@ -256,13 +257,19 @@ class TrainerMF:
         :param val_loader: data loader for validation data
         :return: validation AUC and MSE averaged across validation examples
         """
-        auc_score, val_loss = [], 0.0
+        auc_score, ndcg_score, hit_score = [], [], []
         for batch_idx, (u_idx, i_idx) in enumerate(val_loader):
-            predicted_scores = self.predict(u_idx, i_idx[:, 0])
-            n_predicted_scores = self.predict(u_idx.unsqueeze(1).expand(-1, i_idx.shape[1] - 1), i_idx[:, 1:])
-            auc_score.append(auc(predicted_scores.cpu().numpy(), n_predicted_scores.cpu().numpy()))
+            predicted_scores = self.predict(u_idx, i_idx[:, 0]).cpu().numpy()
+            n_predicted_scores = self.predict(u_idx.unsqueeze(1).expand(-1, i_idx.shape[1] - 1), i_idx[:, 1:]).cpu().\
+                numpy()
+            auc_score.append(auc(predicted_scores, n_predicted_scores))
+            gt = np.zeros((u_idx.shape[0], i_idx.shape[1]))
+            gt[:, 0] = 1
+            total_preds = np.concatenate([predicted_scores[:, np.newaxis], n_predicted_scores], axis=1)
+            ndcg_score.append(ndcg_at_k(total_preds, gt, 10))
+            hit_score.append(hit_at_k(total_preds, gt, 10))
 
-        return np.mean(auc_score)
+        return np.mean(auc_score), np.mean(ndcg_score), np.mean(hit_score)
 
     def save_model(self, path):
         """
