@@ -266,8 +266,8 @@ class TrainerMF:
             gt = np.zeros((u_idx.shape[0], i_idx.shape[1]))
             gt[:, 0] = 1
             total_preds = np.concatenate([predicted_scores[:, np.newaxis], n_predicted_scores], axis=1)
-            ndcg_score.append(ndcg_at_k(total_preds, gt, 10))
-            hit_score.append(hit_at_k(total_preds, gt, 10))
+            ndcg_score.append(np.mean(ndcg_at_k(total_preds, gt, 10)))
+            hit_score.append(np.mean(hit_at_k(total_preds, gt, 10)))
 
         return np.mean(auc_score), np.mean(ndcg_score), np.mean(hit_score)
 
